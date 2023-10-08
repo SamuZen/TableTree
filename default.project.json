@@ -1,0 +1,6 @@
+{
+  "name": "TableTree",
+  "tree": {
+    "$path": "src/TableTree.lua"
+  }
+}

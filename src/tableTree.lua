@@ -18,6 +18,11 @@ export type ClassInstance = {
     name: string,
     root: Folder,
 
+    -- original swap
+    
+
+
+
     set: (nil, path: string, key: string, newValue: any) -> nil,
     get: (nil, path: string) -> any,
     add: (nil, path: string, key: string, value: any) -> nil,
@@ -78,11 +83,6 @@ function TableTree.toTable(instance)
     return self
 end
 
-function TableTree.waitPlayerTree(player: Player, name: string)
-    if name == nil then name = "_replicationFolder" end
-    return TableTree.waitTreeSync(name, player)
-end
-
 function TableTree.waitTreeSync(name, parent)
     local tree = sharedTrees[name]
     local addToShared = false
@@ -118,7 +118,7 @@ end
 
 function TableTree:get(fullPath)
     local splitted = self:splitFullPath(fullPath)
-    return self:getPathWithKey(splitted.path, splitted.key)
+    return self:getValueOnPathWithKey(splitted.path, splitted.key)
 end
 
 function TableTree:set(fullPath, newValue)
@@ -129,7 +129,8 @@ end
 function TableTree:increment(fullPath, value)
     assert(value ~= nil, "Value needs to be different of nil")
 	assert(type(value) == "number", "Value needs to be a number")
-    self:set(self:get(fullPath) + value)
+    local current = self:get(fullPath)
+    self:set(fullPath, current + value)
 end
 
 function TableTree:remove(path, key)
@@ -139,8 +140,7 @@ end
 function TableTree:keepUpdated(fullPath: string, callback: (any) -> nil)
     local splitted = self:splitFullPath(fullPath)
 
-    local folder = self.mapTables[splitted.path]
-    assert(folder, "There is no structure with name " .. fullPath)
+    local folder = self:getFolderWithPath(splitted.path)
 
     callback(folder:GetAttribute(splitted.key))
     return folder:GetAttributeChangedSignal(splitted.key):Connect(function()
@@ -150,9 +150,14 @@ end
 
 -- table
 function TableTree:getTable(path: string)
-    local folder = self.mapTables[path]
+    local folder = self:getFolderWithPath(path)
     assert(folder, 'failed to find folder with path: ' .. path)
     return folder:GetAttributes()
+end
+
+function TableTree:getFolderWithPath(path: string)
+    if path == nil or path == "" then return self.root end
+    return self.mapTables[path]
 end
 
 -- geral
@@ -248,18 +253,21 @@ function TableTree:createFromTree(root)
 end
 
 function TableTree:splitFullPath(fullPath)
+    local path = nil
     local lastDotIndex = string.find(fullPath, ".[^.]*$")
+    if lastDotIndex == 1 then lastDotIndex = 0 end
+    if lastDotIndex ~= 0 then
+        path = string.sub(fullPath, 1, lastDotIndex - 1)
+    end
     return {
-        path = string.sub(fullPath, 1, lastDotIndex - 1),
+        path = path,
         key = string.sub(fullPath, lastDotIndex + 1),
         lastDotIndex = lastDotIndex,
     }
 end
 
 function TableTree:setPathKeyValue(path, key, newValue)
-    local folder = self.mapTables[path]
-    assert(folder, "There is no structure with name " .. path)
-
+    local folder = self:getFolderWithPath(path)
     if typeof(newValue) == "table" then
         self:createTree(key, folder, newValue)
     else
@@ -267,9 +275,8 @@ function TableTree:setPathKeyValue(path, key, newValue)
     end
 end
 
-function TableTree:getPathWithKey(path, key)
-    local folder = self.mapTables[path]
-    assert(folder, "There is no structure with name " .. path)
+function TableTree:getValueOnPathWithKey(path, key)
+    local folder = self:getFolderWithPath(path)
     return folder:GetAttribute(key)
 end
 
